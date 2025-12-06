@@ -5,6 +5,7 @@ import time
 
 def detect_windows(model, image_path, show_image=True):
     img = cv2.imread(image_path)
+    # Predict windows in the image
     results = model.predict(img, conf=0.5, verbose=False)
     cropped_windows = []
 
@@ -24,7 +25,7 @@ def detect_windows(model, image_path, show_image=True):
     # Sort by x1 ascending
     cropped_windows.sort(key=lambda x: x[1])
 
-    # Optionally show detection result
+    # Show detection result
     if show_image:
         cv2.imshow("Detected Windows", img)
         cv2.waitKey(0)
