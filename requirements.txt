@@ -1,0 +1,6 @@
+python=3.11
+ultralytics
+matplotlib
+opencv-python
+numpy
+tensorflow
