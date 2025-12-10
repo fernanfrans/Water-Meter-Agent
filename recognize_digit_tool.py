@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+from tensorflow.keras.models import load_model
 
 def process_digit_image(img):
     # 1. Preprocessing the image
@@ -44,30 +45,26 @@ def process_digit_image(img):
     final_digit = cv2.resize(center_digit, (28, 28), interpolation=cv2.INTER_AREA)
     return final_digit
 
+def predict_digit(model, digit_image):
+    # Preprocess the digit image
+    processed_digit = process_digit_image(digit_image)
+    processed_digit = processed_digit.astype('float32') / 255.0
+    processed_digit = np.expand_dims(processed_digit, axis=(0, -1))  # Shape: (1, 28, 28, 1)
+
+    # Predict using the model
+    predictions = model.predict(processed_digit)
+    predicted_class = np.argmax(predictions, axis=1)[0]
+    confidence = np.max(predictions)
+
+    return predicted_class, confidence
+
 if __name__ == "__main__":
     test_image_path = r"C:\Users\Administrator\DATA SCIENTIST\WIZY\Water-Meter-Agent\water-window\347_1745560954798-WV_ffe69_20250425_140234_png_3.png"
-    raw_folder = r"C:\Users\Administrator\DATA SCIENTIST\WIZY\Water-Meter-Agent\water-window"
-    preprocessed_output = r"C:\Users\Administrator\DATA SCIENTIST\WIZY\Water-Meter-Agent\water-window_preprocessed"
-    for i, image_name in enumerate(os.listdir(raw_folder)):
-        image_path = os.path.join(raw_folder, image_name)
-        processed_image = process_digit_image(image_path)
-        os.makedirs(preprocessed_output, exist_ok=True)
-        output_path = os.path.join(preprocessed_output, image_name)
-        cv2.imwrite(output_path, processed_image)
-        print(f"Processed image {i+1}/{len(os.listdir(raw_folder))}")
-    # processed_image = process_digit_image(test_image_path)
-    # cv2.imshow("Processed Digit", processed_image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    processed_image = process_digit_image(test_image_path)
+    model = load_model("mnist_model.h5")
+    predicted_class, confidence = predict_digit(model, processed_image)
+    print(f"Predicted Digit: {predicted_class} with confidence {confidence:.2f}")
 
 
 
 
-
-
-
-# # === 6. Normalize (0–1 float) ===
-# digit = digit.astype('float32') / 255.0
-
-# # Optional: reshape if your model expects (1, 28, 28, 1)
-# digit = np.expand_dims(digit, axis=(0, -1))

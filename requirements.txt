@@ -1,6 +1,13 @@
-python=3.11
+# LangChain old versions compatible with your agent code
+langchain==0.1.17
+langchain-community==0.0.38
+ollama
+
+# Core dependencies
+numpy==1.23.5
+opencv-python==4.7.0.72
+
+# ML/Deep Learning
+tensorflow==2.13.0
+keras==2.13.1
 ultralytics
-matplotlib
-opencv-python
-numpy
-tensorflow
