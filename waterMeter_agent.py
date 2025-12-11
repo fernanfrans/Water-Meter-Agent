@@ -5,38 +5,31 @@ from langchain_community.chat_models import ChatOllama
 from langchain.callbacks.base import BaseCallbackHandler
 from WaterMeter_tool_registry import WaterMeterTools
 
-# --- Logger ---
+# --- 1. CLEANER LOGGER (Removed INITIAL THOUGHT) ---
 class ThinkingLogger(BaseCallbackHandler):
-
     def on_chain_start(self, serialized, inputs, **kwargs):
-        # Only display once at the start of the whole agent
         if serialized.get("name") == "AgentExecutor":
             print("\n🔵 AGENT STARTED.")
 
-    def on_llm_end(self, response, **kwargs):
-        # Capture the agent's initial reasoning step (the one that never shows)
-        try:
-            txt = response.generations[0][0].text.strip()
-            if txt:
-                print(f"\n🧠 INITIAL THOUGHT: {txt}")
-        except:
-            pass
-
     def on_agent_action(self, action, **kwargs):
-        thought = action.log.split("Action:")[0].replace("Thought:", "").strip()
+        log_text = action.log
+        thought = log_text.split("Action:")[0].replace("Thought:", "").strip()
         print(f"\n🧠 THOUGHT: {thought}")
         print(f"👉 ACTION: {action.tool}")
 
     def on_tool_end(self, output, **kwargs):
         text = str(output)
+        # Shorten observation if it's too long
         print(f"👀 OBSERVATION: {text[:300]}..." if len(text) > 300 else f"👀 OBSERVATION: {text}")
 
 
-    
+def report_final_result(reading: str, reliability_score: float):
+    return f"Final Answer: {reading}\nReliability Score: {reliability_score:.4f}"
+
 def main():
     toolkit = WaterMeterTools()
 
-    # --- DEFINE MULTI-ARGUMENT TOOLS ---
+    # --- DEFINE TOOLS ---
     tools = [
         StructuredTool.from_function(
             name="DetectMeterWindows",
@@ -47,6 +40,12 @@ def main():
             name="ReadDigit",
             func=toolkit.tool_digit_recognition,
             description="Reads digits from a LIST of image paths. Args: 'file_paths' (List[str]). Returns the identified digits."
+        ),
+        # WE ADD THIS TOOL TO FORCE THE CALCULATION
+        StructuredTool.from_function(
+            name="ReportResult",
+            func=report_final_result,
+            description="ALWAYS call this tool LAST. Takes 'reading' (string) and 'reliability_score' (float) to finish the job."
         )
     ]
 
@@ -62,46 +61,34 @@ def main():
 
     image_path = r"F:\Water-Meter-Agent-version1\sample_input.jpg"
     
-    # --- PROMPT: The "Strategy" for the Agent ---
+    # --- UPDATED PROMPT ---
     prompt = f"""
-    You are a Smart Water Meter Reader.
+    You are a Smart Water Meter Reader. Always show the thought, action, and observation steps.
 
     GOAL:
     Read the water meter in this image: {image_path}
 
-    TOOLS YOU ARE ALLOWED TO USE:
-    1. DetectMeterWindows
-    2. ReadDigit
-
-    IMPORTANT RULES:
-    - You MUST NOT create or call any tool other than the two above.
-    - You MUST NOT invent tools such as CombineDigits, ProcessOutput, etc.
-    - After calling ReadDigit, you MUST STOP calling tools and finish the answer.
+    TOOLS:
+    1. DetectMeterWindows (Finds the meter)
+    2. ReadDigit (Reads the numbers)
+    3. ReportResult (Submits the final answer)
 
     STEP-BY-STEP INSTRUCTIONS:
-    1. First call DetectMeterWindows with conf_threshold=0.5.
-    2. If detection fails (wrong number of windows), call DetectMeterWindows again with conf_threshold=0.3.
-    3. When DetectMeterWindows succeeds, it returns a list of file paths.
-    4. Call ReadDigit using exactly that list of file paths.
-    5. ReadDigit returns a list of dictionaries like:
-    [{{'digit': 1, 'confidence': 0.95}}, ...]
-    6. You MUST process this result **yourself** (without tools):
-    - Extract each 'digit' in order
-    - Combine digits into a single string (e.g., "12345")
-    - Compute the reliability score as the AVERAGE of the 'confidence' values.
-
-    FINAL OUTPUT FORMAT (NO TOOL CALLS):
-    Final Answer: <the_number>
-    Reliability Score: <average_confidence_rounded_to_3_decimals>
+    1. Call DetectMeterWindows with conf_threshold=0.5.
+    2. Call ReadDigit using the file paths from step 1.
+    3. You will receive a list like [{{'digit': 0, 'confidence': 0.99}}, ...].
+    4. MENTALLY and MANUALLY calculate:
+       - The combined string (e.g. "00580")
+       - The AVERAGE confidence score.
+    5. Call ReportResult with these two values to finish.
     """
 
     # Run the agent
     try:
+        # We assume the last tool call return value is the result
         result = agent.run(prompt, callbacks=[ThinkingLogger()])
         print(f"\n✅ RESULT: {result}")
     except Exception as e:
-        # Sometimes Llama3 finishes but creates a parsing error. 
-        # The answer is often inside the error message.
         print(f"\n⚠️ Agent finished with parsing warning: {e}")
 
 if __name__ == "__main__":
